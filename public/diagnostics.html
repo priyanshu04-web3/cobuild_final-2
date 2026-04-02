@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CoBuild Diagnostics</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f5f5f5;
+      padding: 20px;
+    }
+    .container { max-width: 800px; margin: 0 auto; background: white; border-radius: 8px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    h1 { color: #333; margin-bottom: 20px; }
+    .section { margin-bottom: 20px; padding: 15px; background: #f9f9f9; border-left: 4px solid #3b82f6; border-radius: 4px; }
+    .section h2 { font-size: 16px; color: #1f2937; margin-bottom: 10px; }
+    .status { padding: 10px; border-radius: 4px; font-size: 14px; margin: 5px 0; font-family: monospace; }
+    .status.success { background: #dcfce7; color: #166534; }
+    .status.error { background: #fee2e2; color: #991b1b; }
+    .status.warning { background: #fef3c7; color: #92400e; }
+    .status.info { background: #dbeafe; color: #1e40af; }
+    button { background: #3b82f6; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; margin: 5px 5px 5px 0; }
+    button:hover { background: #2563eb; }
+    .loading { color: #666; font-style: italic; }
+    pre { background: #1f2937; color: #e5e7eb; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔧 CoBuild Diagnostics</h1>
+    
+    <div class="section">
+      <h2>Network Environment</h2>
+      <div id="network"></div>
+    </div>
+
+    <div class="section">
+      <h2>Proxy Status</h2>
+      <div id="proxy"></div>
+      <button onclick="testProxy()">Test Proxy</button>
+    </div>
+
+    <div class="section">
+      <h2>Supabase Connectivity</h2>
+      <div id="supabase"></div>
+      <button onclick="testSupabase()">Test Supabase</button>
+    </div>
+
+    <div class="section">
+      <h2>Supabase Configuration</h2>
+      <div id="config"></div>
+    </div>
+
+    <div class="section">
+      <h2>Browser Console Logs</h2>
+      <pre id="logs"></pre>
+      <button onclick="clearLogs()">Clear Logs</button>
+    </div>
+  </div>
+
+  <script>
+    const logs = [];
+    const originalLog = console.log;
+    const originalError = console.error;
+
+    console.log = function(...args) {
+      originalLog.apply(console, args);
+      logs.push(`[LOG] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+      updateLogs();
+    };
+
+    console.error = function(...args) {
+      originalError.apply(console, args);
+      logs.push(`[ERROR] ${args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ')}`);
+      updateLogs();
+    };
+
+    function updateLogs() {
+      document.getElementById('logs').textContent = logs.slice(-20).join('\n');
+    }
+
+    function clearLogs() {
+      logs.length = 0;
+      updateLogs();
+    }
+
+    function setStatus(elementId, message, type = 'info') {
+      const elem = document.getElementById(elementId);
+      elem.innerHTML += `<div class="status ${type}">${message}</div>`;
+    }
+
+    function testProxy() {
+      document.getElementById('proxy').innerHTML = '<div class="loading">Testing proxy...</div>';
+      fetch('/api/diagnostics')
+        .then(r => r.json())
+        .then(data => {
+          document.getElementById('proxy').innerHTML = '';
+          setStatus('proxy', `✅ Proxy reachable`, 'success');
+          setStatus('proxy', `Environment configured: ${data.environment.supabaseUrlConfigured ? '✅' : '❌'}`, data.environment.supabaseUrlConfigured ? 'success' : 'error');
+          setStatus('proxy', JSON.stringify(data.supabaseConnectivity, null, 2), data.supabaseConnectivity.success ? 'success' : 'error');
+        })
+        .catch(err => {
+          document.getElementById('proxy').innerHTML = '';
+          setStatus('proxy', `❌ Cannot reach proxy: ${err.message}`, 'error');
+        });
+    }
+
+    function testSupabase() {
+      document.getElementById('supabase').innerHTML = '<div class="loading">Testing Supabase...</div>';
+      const supabaseUrl = new URLSearchParams(window.location.search).get('url') || 'https://YOUR_PROJECT.supabase.co';
+      fetch(`${supabaseUrl}/rest/v1/`, {
+        headers: { 'Authorization': 'Bearer YOUR_ANON_KEY' }
+      })
+        .then(r => {
+          document.getElementById('supabase').innerHTML = '';
+          setStatus('supabase', `Response status: ${r.status}`, r.ok ? 'success' : 'warning');
+          return r.json().catch(() => ({}));
+        })
+        .then(data => {
+          setStatus('supabase', JSON.stringify(data, null, 2), 'info');
+        })
+        .catch(err => {
+          document.getElementById('supabase').innerHTML = '';
+          setStatus('supabase', `❌ Error: ${err.message}`, 'error');
+        });
+    }
+
+    // Initial tests
+    document.getElementById('network').innerHTML = `
+      <div class="status info">Origin: ${window.location.origin}</div>
+      <div class="status info">User Agent: ${navigator.userAgent.substring(0, 60)}...</div>
+    `;
+
+    testProxy();
+  </script>
+</body>
+</html>
