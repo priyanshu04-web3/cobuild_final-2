@@ -1,13 +1,25 @@
 import { createClient } from "@supabase/supabase-js";
 
 /* ─────────────────────────────────────────────
-   Replace these with your Supabase project values.
-   Dashboard → Project Settings → API
+   Supabase client with API proxy for restricted networks
+   The proxy routes requests through your Vercel domain,
+   allowing it to work on institute/corporate Wi-Fi
 ───────────────────────────────────────────── */
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  ?? "https://YOUR_PROJECT.supabase.co";
+
+// Use proxy endpoint on production, direct URL on development
+const isProduction = import.meta.env.MODE === 'production';
+const SUPABASE_URL = isProduction
+  ? `${window.location.origin}/api/proxy`
+  : (import.meta.env.VITE_SUPABASE_URL ?? "https://YOUR_PROJECT.supabase.co");
+
 const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON ?? "YOUR_ANON_KEY";
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON);
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+  },
+});
 
 /* ─────────────────────────────────────────────
    TYPE HELPERS

@@ -1,0 +1,10 @@
+# Vercel deployment configuration
+# Ensure api/ folder is included
+.git
+.gitignore
+node_modules
+dist
+src
+public
+*.md
+.env.example
